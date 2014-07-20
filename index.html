@@ -1,8 +1,15 @@
 <!doctype html>
 <head>
     <script src="Phys.js" type="text/javascript"></script>
+	<style type="text/css">
+		#controls {text-align:center; width:304px; padding:0.5em 0;}
+	</style>
 </head>
 <canvas id="view" width="300" height="300" style="border:2px inset";></canvas>
+<div id="controls">
+	Bounce = <span id="bounce-display">1</span><br />
+	<input id="bounce" type="range" min="0.01" max="1" value="1" step="0.01" />
+</div>
 <script type="application/javascript">
 	var raf = function() { };
 	var raf = requestAnimationFrame;
@@ -14,54 +21,80 @@
 	vctx.fillStyle="red";
 	
 	var fullCircle = Math.PI * 2;
-
-	var scale = 80;
+	var radius = 20;
+	
+	var scale = 80, bounce = 1, atRest = false;
 	var p=new Phys(), hitTime;
 	p.reset = function reset() {
-		p.position = 0;
-		p.velocity = 5*scale;
+		p.position = radius;
+		p.velocity = 7.5*scale;
 		p.acceleration = -9.8*scale;
 		//p.moment();
 		
-		hitTime = Phys.predict.time.byPosition(p, 0);
+		vctx.fillStyle="red";
+		atRest = false;
+		
+		console.log("initial prediction");
+		hitTime = Phys.predict.time.byPosition(p, radius);
 	};
 	p.reset();
 	
-	var bounce = 0.9;
 	var prevFrame = Date.now(), currentFrame, deltaFrame;
 	raf(function render(){
+		//console.log(p);
+		
 		currentFrame = Date.now();
 		deltaFrame = (currentFrame-prevFrame)/1000;
 		prevFrame=currentFrame;
 		
-		if(hitTime < deltaFrame){
-			p.simulate(hitTime); //p.moment();
-			p.positon = 0; // correct position
-			p.velocity=-p.velocity*bounce; // bounce
-			//p.moment();
-			//console.log(p);
-			deltaFrame-=hitTime;
-			//document.title = ("at hitTime = "+p.position);
-			//p.position=0;
-			hitTime = Phys.predict.time.byPosition(p, 0);
-			if(!hitTime){
-				p.position=p.velocity =p.acceleration = 0;
-				//p.moment();
-				console.log("at rest");
+		if(!atRest){
+			if(hitTime<deltaFrame*2){
+				console.log("previous-frame prediction");
+				hitTime = Phys.predict.time.byPosition(p, radius);
 			}
-			p.simulate(deltaFrame);
+			//console.log(hitTime, deltaFrame);
+			if(hitTime < deltaFrame){
+				//console.log(deltaFrame+" - "+hitTime+" = "+ (deltaFrame-hitTime));
+				p.simulate(hitTime); //p.moment();
+				//p.positon = 0; // correct position
+				p.velocity=-p.velocity * bounce; // bounce
+				//console.log(p);
+
+				console.log(p.position);
+				if(p.position<-1e-13){
+					console.log("variance");
+				}
+
+				deltaFrame-=hitTime;
+				//console.log(">", deltaFrame);
+				//document.title = ("at hitTime = "+p.position);
+				//p.position=0;
+				p.simulate(deltaFrame);
+				hitTime = Phys.predict.time.byPosition(p, radius);
+				if(hitTime===null){
+					console.log("at rest", p);
+					atRest = true;
+					vctx.fillStyle="blue";
+					p.position=radius;
+					p.velocity =p.acceleration = 0;
+				}
+				else {
+					p.simulate(deltaFrame);
+				}
+				//console.log(p.position);
+			}
+			else{
+				hitTime-=deltaFrame;
+				p.simulate(deltaFrame);
+			}
 		}
-		else{
-			hitTime-=deltaFrame;
-			p.simulate(deltaFrame);
-		}
-		
 		//console.log("position =", p.position);
 		
 		vctx.clearRect(0,0,vw,vh);
 		
 		vctx.beginPath();
-		vctx.arc(vc, vh-p.position, 10, 0, fullCircle, true);
+		//console.log(p.velocity);
+		vctx.arc(vc, vh-p.position, radius, 0, fullCircle, true);
 		//console.log(p.position);
 		
 		vctx.fill();
@@ -69,8 +102,21 @@
 		raf(render);
 	});
 	
-	view.addEventListener("click", function() {
-		p.reset();
+	/*view.addEventListener("click", function(e) {
+		bounce = 1 - ((e.pageY - e.target.offsetTop - 2) / vh);
+		if(atRest){p.reset();}
+		e.stopPropagation();
 	});
+	window.addEventListener("click", function(e){
+		if(atRest){p.reset();}
+		bounce = 1;
+	});*/
+	var bounceDisplay = document.getElementById("bounce-display");
+	var bounceInput = document.getElementById("bounce");
+	bounceInput.onchange=bounceInput.oninput=function(e){
+		bounceDisplay.innerText = bounce = +e.target.value;
+		if(atRest){p.reset();}
+		//console.log("range", e.target.value, +e.target.value);
+	};
 	
 </script>
