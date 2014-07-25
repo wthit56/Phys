@@ -1,0 +1,153 @@
+<!doctype html>
+<html>
+	<head>
+		<link href="styles.css" rel="stylesheet" type="text/css" />
+		<script src="Phys.js" type="text/javascript"></script>
+		<script src="Phys.predict.js" type="text/javascript"></script>
+	</head>
+	<body>
+		<canvas id="view" width="300" height="300" style="border:2px inset";></canvas>
+		<div id="controls">
+			<button id="relaunch">Relaunch</button>
+			Bounce = <span id="bounce-display">1</span><br />
+			<input id="bounce" type="range" min="0.01" max="1" value="1" step="0.01" />
+		</div>
+
+		<script type="text/javascript">
+			var raf = function() { };
+			var raf = requestAnimationFrame;
+
+			var view = document.getElementById("view"),
+				vctx = view.getContext("2d"),
+				vw = view.width, vc = vw/2, vh = view.height;
+
+			var fullCircle = Math.PI * 2, radius = 20, clearPadding = 1;
+			var scale = 80, bounce = 0.5, atRest = false;
+
+			var p = new Phys(), hitTime, hit = false, prevPos = null;
+			p.reset = function reset() {
+				p.position = radius;
+				p.velocity = 7.5 * scale;
+				p.acceleration = -9.8 * scale;
+
+				vctx.fillStyle = "red";
+				atRest = false;
+
+				hitTime = Phys.predict.time.byPosition(p, radius);
+			};
+			p.reset();
+
+			var prevFrame = Date.now(), currentFrame, deltaFrame;
+			raf(function render() {
+				currentFrame = Date.now();
+				deltaFrame = (currentFrame - prevFrame) / 1000;
+				prevFrame = currentFrame;
+
+				if (!atRest) {
+					if (hitTime <= deltaFrame) {
+						p.velocity = -p.velocity * bounce;
+
+						while ((hitTime !== null) && (hitTime <= deltaFrame)) {
+							p.simulate(hitTime); deltaFrame -= hitTime;
+							hitTime = Phys.predict.time.byPosition(p, radius);
+						}
+						hit = true;
+					}
+
+					if (hitTime === null) {
+						atRest = true;
+						vctx.fillStyle = "blue";
+						p.position = radius;
+						p.velocity = p.acceleration = 0;
+					}
+					else {
+						if (hitTime < deltaFrame) { throw "Incorrect hitTime: " + hitTime; }
+						p.simulate(deltaFrame); hitTime -= deltaFrame;
+					}
+
+					/* // smart clearing
+					if (prevPos !== null) { // smart clearing
+						vctx.clearRect(
+							vc - radius - clearPadding, vh - prevPos - radius - clearPadding,
+							(radius * 2) + (clearPadding * 2), (radius * 2) + (clearPadding * 2)
+						);
+					}
+					prevPos = p.position;
+					*/
+
+					vctx.clearRect(0, 0, vw, vh);
+
+					if (hit) {
+						/*if (p.velocity > 50) {
+							var oldFill = vctx.fillStyle;
+							vctx.fillStyle = "yellow";
+							console.log("big hit");
+							vctx.beginPath();
+							
+							vctx.moveTo(vc, vh);
+							vctx.lineTo(
+								vc - 5 - (Math.random() * p.velocity),
+								vh - 5 - (Math.random() * p.velocity)
+							);
+							vctx.lineTo(
+								vc - 5 - (Math.random() * p.velocity),
+								vh - 5 - (Math.random() * p.velocity)
+							);
+
+							vctx.moveTo(vc, vh);
+							vctx.lineTo(
+								vc + 5 + (Math.random() * p.velocity),
+								vh - 5 - (Math.random() * p.velocity)
+							);
+							vctx.lineTo(
+								vc + 5 + (Math.random() * p.velocity),
+								vh - 5 - (Math.random() * p.velocity)
+							);
+							
+							vctx.closePath();
+							vctx.fill();
+							vctx.fillStyle = oldFill;
+							
+							console.log();
+						}*/
+
+						hit = false;
+					}
+
+					vctx.beginPath();
+					vctx.arc(vc, vh - p.position, radius, 0, fullCircle, true);
+					vctx.fill();				
+				}
+
+				raf(render);
+			});
+
+			view.addEventListener("click", function() {
+				if (atRest) { p.reset(); }
+			});
+			document.getElementById("relaunch").addEventListener("click", function(){
+				if (atRest) {
+					p.reset();
+				}
+				else {
+					var oldPos = p.position;
+					p.reset();
+					p.simulate(Phys.predict.time.byPosition(p, oldPos));
+					hitTime = Phys.predict.time.byPosition(p, radius);
+				}
+			});
+
+			(function() {
+				var bounceDisplay = document.getElementById("bounce-display");
+				var bounceInput = document.getElementById("bounce");
+				bounceDisplay.innerText = bounceInput.value = bounce;
+				function updateBounce(e) {
+					bounceDisplay.innerText = bounce = +bounceInput.value;
+					if (atRest) { p.reset(); }				
+				}
+				bounceInput.addEventListener("change", updateBounce);
+				bounceInput.addEventListener("input", updateBounce);
+			})();
+		</script>
+	</body>
+</html>

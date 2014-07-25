@@ -1,8 +1,9 @@
 <!doctype html>
 <html>
 	<head>
-		<script src="Phys.js" type="text/javascript"></script>
 		<link href="styles.css" rel="stylesheet" type="text/css" />
+		<script src="Phys.js" type="text/javascript"></script>
+		<script src="Phys.predict.js" type="text/javascript"></script>
 	</head>
 	<body>
 		<canvas id="view" width="300" height="300" style="border:2px inset";></canvas>
@@ -12,7 +13,7 @@
 			<input id="bounce" type="range" min="0.01" max="1" value="1" step="0.01" />
 		</div>
 
-		<script type="application/javascript">
+		<script type="text/javascript">
 			var raf = function() { };
 			var raf = requestAnimationFrame;
 
@@ -23,130 +24,104 @@
 			var fullCircle = Math.PI * 2, radius = 20, clearPadding = 1;
 			var scale = 80, bounce = 0.5, atRest = false;
 
-			var p = new Phys(), hitTime, hit = false, prevPos = null;
-			p.reset = function reset() {
-				p.position = radius;
-				p.velocity = 7.5 * scale;
-				p.acceleration = -9.8 * scale;
-
-				vctx.fillStyle = "red";
-				atRest = false;
-
-				hitTime = Phys.predict.time.byPosition(p, radius);
+			var ball = new Phys();
+			ball.onGround = vh - radius;
+			ball.bounce = 0.5;
+			ball.reset = function() {
+				var scale = 80;
+				ball.position=ball.onGround;
+				ball.velocity=-7.5 * 80;
+				ball.acceleration = 9.8 * 80;
+				
+				onGround.next();
+				console.log(onGround.time);
+				
+				vctx.fillStyle="red";
 			};
-			p.reset();
+			
+			var onGround = {
+				next: function() {
+					return (onGround.time = Phys.predict.time.byPosition(ball, ball.onGround));
+				},
+				time: null
+			};
 
-			var prevFrame = Date.now(), currentFrame, deltaFrame;
-			raf(function render() {
-				currentFrame = Date.now();
-				deltaFrame = (currentFrame - prevFrame) / 1000;
-				prevFrame = currentFrame;
+			ball.reset();
+			
+			raf((function(){
+				var prevFrame = Date.now(),
+					nextFrame, deltaFrame, avgFrame;
+				
+				var bounces = 0;
+				return function frame() {
+					nextFrame=Date.now();
+					deltaFrame = (nextFrame - prevFrame)/1000;
+					prevFrame=nextFrame;
+					
+					{ // update
+						//console.log(onGround.time);
+						if(onGround.time!==null){
+							while ((onGround.time!==null) && (onGround.time<deltaFrame)) {
+								ball.simulate(onGround.time);
+								//console.log(++bounces, "bounce from", ball.position, onGround.time, deltaFrame);
+								ball.velocity = -ball.velocity * ball.bounce;
+							
+								deltaFrame -= onGround.time;
+								onGround.next();
+							}
+							
+							if(onGround.time>deltaFrame){
+								ball.simulate(deltaFrame);
+								onGround.time-=deltaFrame;
 
-				if (!atRest) {
-					if (hitTime <= deltaFrame) {
-						p.velocity = -p.velocity * bounce;
-
-						while ((hitTime !== null) && (hitTime <= deltaFrame)) {
-							p.simulate(hitTime); deltaFrame -= hitTime;
-							hitTime = Phys.predict.time.byPosition(p, radius);
+								if (onGround.time < avgFrame) {
+									console.log("pre-calc next onGround");
+									onGround.next();
+								}
+							}
 						}
-						hit = true;
 					}
+					
+					{ // render
+						vctx.clearRect(0,0,vw,vh);
 
-					if (hitTime === null) {
-						atRest = true;
-						vctx.fillStyle = "blue";
-						p.position = radius;
-						p.velocity = p.acceleration = 0;
+						vctx.beginPath();
+						vctx.arc(vc, ball.position, radius, 0, fullCircle, true);
+						vctx.fill();
 					}
-					else {
-						if (hitTime < deltaFrame) { throw "Incorrect hitTime: " + hitTime; }
-						p.simulate(deltaFrame); hitTime -= deltaFrame;
+					
+					raf(frame);
+				};
+			})());
+
+			(function setupBounceInput() {
+				var display = document.getElementById("bounce-display");
+				
+				var input = document.getElementById("bounce");
+				input.addEventListener("input", update);
+				input.addEventListener("change", update);
+				function update() {
+					if(ball.bounce!=input.value){
+						display.innerText = input.value;
+						ball.bounce=+input.value;
+						if(onGround.time===null){
+							ball.reset();
+						}
 					}
-
-					/* // smart clearing
-					if (prevPos !== null) { // smart clearing
-						vctx.clearRect(
-							vc - radius - clearPadding, vh - prevPos - radius - clearPadding,
-							(radius * 2) + (clearPadding * 2), (radius * 2) + (clearPadding * 2)
-						);
-					}
-					prevPos = p.position;
-					*/
-
-					vctx.clearRect(0, 0, vw, vh);
-
-					if (hit) {
-						/*if (p.velocity > 50) {
-							var oldFill = vctx.fillStyle;
-							vctx.fillStyle = "yellow";
-							console.log("big hit");
-							vctx.beginPath();
-							
-							vctx.moveTo(vc, vh);
-							vctx.lineTo(
-								vc - 5 - (Math.random() * p.velocity),
-								vh - 5 - (Math.random() * p.velocity)
-							);
-							vctx.lineTo(
-								vc - 5 - (Math.random() * p.velocity),
-								vh - 5 - (Math.random() * p.velocity)
-							);
-
-							vctx.moveTo(vc, vh);
-							vctx.lineTo(
-								vc + 5 + (Math.random() * p.velocity),
-								vh - 5 - (Math.random() * p.velocity)
-							);
-							vctx.lineTo(
-								vc + 5 + (Math.random() * p.velocity),
-								vh - 5 - (Math.random() * p.velocity)
-							);
-							
-							vctx.closePath();
-							vctx.fill();
-							vctx.fillStyle = oldFill;
-							
-							console.log();
-						}*/
-
-						hit = false;
-					}
-
-					vctx.beginPath();
-					vctx.arc(vc, vh - p.position, radius, 0, fullCircle, true);
-					vctx.fill();				
 				}
-
-				raf(render);
-			});
-
-			view.addEventListener("click", function() {
-				if (atRest) { p.reset(); }
-			});
-			document.getElementById("relaunch").addEventListener("click", function(){
-				if (atRest) {
-					p.reset();
-				}
-				else {
-					var oldPos = p.position;
-					p.reset();
-					p.simulate(Phys.predict.time.byPosition(p, oldPos));
-					hitTime = Phys.predict.time.byPosition(p, radius);
-				}
-			});
-
-			(function() {
-				var bounceDisplay = document.getElementById("bounce-display");
-				var bounceInput = document.getElementById("bounce");
-				bounceDisplay.innerText = bounceInput.value = bounce;
-				function updateBounce(e) {
-					bounceDisplay.innerText = bounce = +bounceInput.value;
-					if (atRest) { p.reset(); }				
-				}
-				bounceInput.addEventListener("change", updateBounce);
-				bounceInput.addEventListener("input", updateBounce);
 			})();
+			
+			document.getElementById("relaunch").addEventListener("click", function(){
+				var oldPos = ball.position, atRest = (onGround.time === null);
+				ball.reset();
+				//debugger;
+				if(!atRest){
+					var moveToPosition = Phys.predict.time.byPosition(ball, oldPos);
+					console.log(moveToPosition);
+					ball.simulate(moveToPosition);
+					onGround.next();
+				}
+			});
 		</script>
 	</body>
 </html>
