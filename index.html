@@ -16,7 +16,7 @@
 		<script type="text/javascript">
 			var raf = function() { };
 			var raf = requestAnimationFrame;
-
+			
 			var view = document.getElementById("view"),
 				vctx = view.getContext("2d"),
 				vw = view.width, vc = vw/2, vh = view.height;
@@ -48,29 +48,39 @@
 			ball.reset();
 			
 			raf((function(){
-				var prevFrame = Date.now(),
+				var prevFrame = null,
 					nextFrame, deltaFrame, avgFrame = 1/60;
 				
 				var prevPos;
 				var cutOffMovement = 1e-10;
-				return function frame() {
-					nextFrame=Date.now();
+				return function frame(timestamp) {
+					if(prevFrame===null){
+						prevFrame=timestamp;
+					}
+					
+					nextFrame=timestamp;
 					deltaFrame = (nextFrame - prevFrame)/1000;
 					prevFrame=nextFrame;
+
 					
 					{ // update
 						//console.log(onGround.time);
 						if(onGround.time!==null){
 							if(onGround.time<=deltaFrame){
-								//var i=0;
+								var i=0;
 								prevPos = ball.position;
 								onGround.next();
 								while ((onGround.time!==null) && (onGround.time<=deltaFrame)) {
-									//i++;
+									if(++i>Infinity){
+										console.log("stop iterating", i);
+										onGround.time = null;
+										ball.position = ball.onGround;
+										break;
+									}
 									
 									ball.simulate(onGround.time);
 									
-									if (  // short-circuit to prevent long iterations
+									/*if (  // short-circuit to prevent long iterations
 										(
 											prevPos > ball.position
 												? prevPos - ball.position
@@ -79,15 +89,22 @@
 									){
 										onGround.time = null;
 									}
-									else{
+									else{*/
 										if(ball.position>ball.onGround){ console.log("overstep", ball.position); }
+										//console.log(ball.position, ball.onGround);
+										if(ball.position!==ball.onGround){console.log("miss", ball.position);}
 
-										ball.position = ball.onGround;
-										ball.velocity = -ball.velocity * ball.bounce;
+										if(i===1){
+											ball.velocity = -ball.velocity * ball.bounce;
+											if(ball.position!==ball.onGround){
+												console.log("inaccurate position", ball.position);
+											}
+											ball.position = ball.onGround;
+										}
 
 										deltaFrame -= onGround.time;
 										onGround.next();
-									}
+									/*}*/
 									
 									prevPos = ball.position;
 								}
